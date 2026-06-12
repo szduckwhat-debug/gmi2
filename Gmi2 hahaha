@@ -123,13 +123,13 @@ local function getG2s()
 	return g2s
 end
 
---// GRAB LOGIC (ATALHOS CONTINUOS DE GRABTOOLS - VERSÃO DE PC OTIMIZADA COM GETDESCENDANTS SEM DELAYS)
+--// GRAB LOGIC (ATALHOS CONTINUOS DE GRABTOOLS - VERSÃO DE PC OTIMIZADA COM GETCHILDREN SEM LAGS)
 local function doGrab()
 	local char = lp.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
 	
-	for _, item in pairs(workspace:GetDescendants()) do
+	for _, item in pairs(workspace:GetChildren()) do
 		if item:IsA("Tool") and item:FindFirstChild("Handle") then
 			pcall(function()
 				firetouchinterest(hrp, item.Handle, 0)
@@ -877,10 +877,7 @@ createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 				return
 			end
 			
-			-- 1º PASSO: Dar Reset no personagem
-			humanoid.Health = 0
-			
-			-- 2º PASSO: Dropar todos os itens instantaneamente no exato CFrame do jogador com um micro espalhamento
+			-- 1º PASSO: Dropar todos os itens instantaneamente no exato CFrame do jogador com um micro espalhamento ANTES de resetar
 			for _, tool in pairs(toolsToDrop) do
 				pcall(function()
 					if tool:FindFirstChild("Handle") then
@@ -889,6 +886,11 @@ createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 					tool.Parent = workspace
 				end)
 			end
+			
+			task.wait(0.04) -- Um atraso extremamente curto necessário para garantir que o workspace de rede registre os objetos fisicamente fora do Inventário
+			
+			-- 2º PASSO: Dar Reset no personagem
+			humanoid.Health = 0
 			notify("🎒 " .. tostring(#toolsToDrop) .. " itens dropados no chão e personagem resetado!", 2)
 		else
 			notify("❌ Personagem/Humanoid não encontrado!", 2)
