@@ -879,13 +879,17 @@ createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 				return
 			end
 			
-			-- 1º PASSO: Dropar todos os itens instantaneamente no exato CFrame do jogador com um micro espalhamento ANTES de resetar
+			-- 1º PASSO: Dropar todos os itens instantaneamente no exato CFrame do jogador com um micro espalhamento ANTES de resetar (Sem cair no Void)
 			for _, tool in pairs(toolsToDrop) do
 				pcall(function()
-					if tool:FindFirstChild("Handle") then
-						tool.Handle.CFrame = pos + Vector3.new(math.random(-15, 15)/10, 1 + math.random(-5, 5)/10, math.random(-15, 15)/10)
-					end
 					tool.Parent = workspace
+					local handle = tool:FindFirstChild("Handle")
+					if handle and handle:IsA("BasePart") then
+						handle.CanCollide = true
+						handle.Velocity = Vector3.new(0, 0, 0)
+						handle.RotVelocity = Vector3.new(0, 0, 0)
+						handle.CFrame = pos + Vector3.new(math.random(-15, 15)/10, 2 + math.random(-5, 5)/10, math.random(-15, 15)/10)
+					end
 				end)
 			end
 			
@@ -921,10 +925,16 @@ createExtraBtn("💣 DUPE G2: OFF", Color3.fromRGB(255, 0, 128), function(btn, s
 						local g2s = getG2s()
 						if #g2s > 0 then
 							for _, tool in pairs(g2s) do
-								if tool:FindFirstChild("Handle") then
-									tool.Handle.CFrame = dupeSpot
-								end
-								tool.Parent = workspace
+								pcall(function()
+									tool.Parent = workspace
+									local handle = tool:FindFirstChild("Handle")
+									if handle and handle:IsA("BasePart") then
+										handle.CanCollide = true
+										handle.Velocity = Vector3.new(0, 0, 0)
+										handle.RotVelocity = Vector3.new(0, 0, 0)
+										handle.CFrame = dupeSpot + Vector3.new(0, 2, 0)
+									end
+								end)
 							end
 							task.wait(0.04)
 							humanoid.Health = 0
