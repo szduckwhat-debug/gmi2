@@ -125,13 +125,13 @@ local function getG2s()
 	return g2s
 end
 
---// GRAB LOGIC (ATALHOS CONTINUOS DE GRABTOOLS - VERSÃO DE PC OTIMIZADA COM GETCHILDREN SEM LAGS)
+--// GRAB LOGIC (ATALHOS CONTINUOS DE GRABTOOLS - VERSÃO DE PC OTIMIZADA COM GETDESCENDANTS SEM DELAYS)
 local function doGrab()
 	local char = lp.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
 	
-	for _, item in pairs(workspace:GetChildren()) do
+	for _, item in pairs(workspace:GetDescendants()) do
 		if item:IsA("Tool") and item:FindFirstChild("Handle") then
 			pcall(function()
 				firetouchinterest(hrp, item.Handle, 0)
@@ -916,22 +916,29 @@ createExtraBtn("💣 DUPE G2: OFF", Color3.fromRGB(255, 0, 128), function(btn, s
 					local hrp = char and char:FindFirstChild("HumanoidRootPart")
 					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 					if hrp and humanoid then
-						-- Define o local de dupe se não houver um, ligeiramente elevado do chão (+3.5 studs no eixo Y)
+						-- Define o local de dupe se não houver um, elevado 15 studs do chão no eixo Y (Idêntico ao PC)
 						if not dupeSpot then
-							dupeSpot = hrp.CFrame * CFrame.new(0, 3.5, 0)
+							dupeSpot = hrp.CFrame * CFrame.new(0, 15, 0)
 						end
 						
 						local g2s = getG2s()
 						if #g2s > 0 then
-							-- 1º PASSO: Teleportar para o ponto de dupe elevado
+							-- 1º PASSO: Teleportar para o ponto de dupe elevado e ancorar contra movimentos laterais
 							hrp.CFrame = dupeSpot
+							pcall(function()
+								hrp.Anchored = true
+								hrp.Velocity = Vector3.new(0, 0, 0)
+								hrp.RotVelocity = Vector3.new(0, 0, 0)
+								hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+								hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+							end)
 							task.wait(0.05)
 							
 							-- 2º PASSO: Dar Reset no personagem
 							humanoid.Health = 0
 							task.wait(0.15)
 							
-							-- 3º PASSO: Equipar e dropar um por um via Backspace
+							-- 3º PASSO: Equipar e dropar um por um via Backspace (Idêntico ao PC)
 							for _, tool in pairs(g2s) do
 								pcall(function()
 									humanoid:EquipTool(tool)
