@@ -231,8 +231,8 @@ RunService.Stepped:Connect(function()
 	end
 end)
 
---// CRIAR INTERFACE CELULAR COMPATÍVEL COM DELTA/FLUXUS (PROTEÇÃO DE ENVIROMENT COM GETHUI)
-local parentGui = (gethui and gethui()) or game:GetService("CoreGui") or lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui")
+--// CRIAR INTERFACE CELULAR COMPATÍVEL COM DELTA/FLUXUS (LOCALIZADO NO PLAYERGUI COMO A VERSÃO ANTERIOR PARA MELHOR COMPATIBILIDADE DE CHAT/PAINÉIS)
+local parentGui = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5) or lp.PlayerGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "InsaneMobile"
 ScreenGui.ResetOnSpawn = false
@@ -257,14 +257,14 @@ local OpenStroke = Instance.new("UIStroke", OpenBtn)
 OpenStroke.Color = Color3.fromRGB(255, 0, 0)
 OpenStroke.Thickness = 2
 
--- Painel Principal
+-- Painel Principal (Active = true impede que o toque passe para a câmera do Roblox)
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Name = "MainPanel"
 MainFrame.Size = UDim2.new(0, 255, 0, 395)
 MainFrame.Position = UDim2.new(0.5, -127, 0.5, -197)
 MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 MainFrame.BorderSizePixel = 0
-MainFrame.Active = false
+MainFrame.Active = true
 
 local Corner = Instance.new("UICorner", MainFrame)
 Corner.CornerRadius = UDim.new(0, 12)
