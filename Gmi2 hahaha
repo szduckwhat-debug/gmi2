@@ -34,6 +34,8 @@ local alvos = {}
 local persistentTargets = {}
 local antiVoidActive = false
 local antiFlingActive = false
+local dupeG2Active = false
+local dupeSpot = nil
 local originalFallenHeight = workspace.FallenPartsDestroyHeight
 if originalFallenHeight ~= originalFallenHeight then originalFallenHeight = -500 end
 
@@ -898,8 +900,51 @@ createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 	end)
 end)
 
+-- 8. 💣 DUPE G2 (MÉTODO DO PC ADAPTADO COM LOOP E RESET DE TRADIÇÃO DE DUPLICAR)
+createExtraBtn("💣 DUPE G2: OFF", Color3.fromRGB(255, 0, 128), function(btn, stroke)
+	dupeG2Active = not dupeG2Active
+	if dupeG2Active then
+		btn.Text = "💣 DUPE G2: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+		notify("💣 Dupe G2 ATIVADO! Colete no chão com Grab All", 2)
+		task.spawn(function()
+			while dupeG2Active do
+				pcall(function()
+					local char = lp.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart")
+					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+					if hrp and humanoid then
+						if not dupeSpot then
+							dupeSpot = hrp.CFrame
+						end
+						local g2s = getG2s()
+						if #g2s > 0 then
+							for _, tool in pairs(g2s) do
+								if tool:FindFirstChild("Handle") then
+									tool.Handle.CFrame = dupeSpot
+								end
+								tool.Parent = workspace
+							end
+							task.wait(0.04)
+							humanoid.Health = 0
+						end
+					end
+				end)
+				task.wait(1.5)
+			end
+		end)
+	else
+		btn.Text = "💣 DUPE G2: OFF"
+		btn.TextColor3 = Color3.fromRGB(255, 0, 128)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		notify("💣 Dupe G2 DESATIVADO!", 2)
+		dupeSpot = nil
+	end
+end)
+
 -- Tamanho Ajustado da Rolagem de extras para caber perfeitamente os botões da aba sem espaços desnecessários
-ExtraScroll.CanvasSize = UDim2.new(0, 0, 0, 310)
+ExtraScroll.CanvasSize = UDim2.new(0, 0, 0, 355)
 
 --// EVENTS (NÃO MEXIDOS POR SEGURANÇA CONTRA DESCONEXÕES/RESSETS)
 Players.PlayerAdded:Connect(function(player)
