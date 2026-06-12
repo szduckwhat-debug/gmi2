@@ -848,63 +848,60 @@ createExtraBtn("⚡ GRAB ALL: OFF", Color3.fromRGB(255, 255, 255), function(btn,
 	end
 end)
 
--- 7. 🎒 DROP ALL & RESET COM RESET PRIMEIRO + CRÔNICA DE DROPAR TUDO INSTANTANEAMENTE NO LUGAR (SEM ESPERAS LENTAS)
+-- 7. 🎒 DROP ALL & RESET COM RESET PRIMEIRO + CRÔNICA DE DROPAR VIA BACKSPACE (IDÊNTICO AO PC, SEM INVENTÁRIO BUGAR)
 createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 	pcall(function()
 		local char = lp.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local backpack = lp:FindFirstChild("Backpack")
 		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 		
-		if humanoid and hrp then
-			local pos = hrp.CFrame
+		if humanoid then
 			local toolsToDrop = {}
 			if backpack then
 				for _, tool in pairs(backpack:GetChildren()) do
-					if tool:IsA("Tool") then
+					if tool:IsA("Tool") and tool.Name ~= "Kawaii Revolver" then
 						table.insert(toolsToDrop, tool)
 					end
 				end
 			end
 			if char then
 				for _, tool in pairs(char:GetChildren()) do
-					if tool:IsA("Tool") then
+					if tool:IsA("Tool") and tool.Name ~= "Kawaii Revolver" then
 						table.insert(toolsToDrop, tool)
 					end
 				end
 			end
 			
 			if #toolsToDrop == 0 then
-				notify("❌ Nenhum item para dropar!", 2)
+				notify("❌ Nenhum item dropar!", 2)
 				return
 			end
 			
-			-- 1º PASSO: Dropar todos os itens instantaneamente no exato CFrame do jogador com um micro espalhamento ANTES de resetar (Sem cair no Void)
-			for _, tool in pairs(toolsToDrop) do
-				pcall(function()
-					tool.Parent = workspace
-					local handle = tool:FindFirstChild("Handle")
-					if handle and handle:IsA("BasePart") then
-						handle.CanCollide = true
-						handle.Velocity = Vector3.new(0, 0, 0)
-						handle.RotVelocity = Vector3.new(0, 0, 0)
-						handle.CFrame = pos + Vector3.new(math.random(-15, 15)/10, 2 + math.random(-5, 5)/10, math.random(-15, 15)/10)
-					end
-				end)
-			end
-			
-			task.wait(0.04) -- Um atraso extremamente curto necessário para garantir que o workspace de rede registre os objetos fisicamente fora do Inventário
-			
-			-- 2º PASSO: Dar Reset no personagem
+			-- 1º PASSO: Dar Reset no personagem
 			humanoid.Health = 0
-			notify("🎒 " .. tostring(#toolsToDrop) .. " itens dropados no chão e personagem resetado!", 2)
+			task.wait(0.15) -- Espera o estado de morte para iniciar o drop simulado (Idêntico ao G2 Dupe do PC)
+			
+			-- 2º PASSO: Equipar e dropar um por um via Backspace
+			task.spawn(function()
+				for _, tool in pairs(toolsToDrop) do
+					pcall(function()
+						humanoid:EquipTool(tool)
+						task.wait(0.04)
+						vim:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game)
+						task.wait(0.02)
+						vim:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game)
+						task.wait(0.04)
+					end)
+				end
+				notify("🎒 Tudo foi dropado no chão com sucesso!", 2)
+			end)
 		else
 			notify("❌ Personagem/Humanoid não encontrado!", 2)
 		end
 	end)
 end)
 
--- 8. 💣 DUPE G2 (MÉTODO DO PC ADAPTADO COM LOOP E RESET DE TRADIÇÃO DE DUPLICAR)
+-- 8. 💣 DUPE G2 (MÉTODO DO PC ADAPTADO COM LOOP: TP ELEVADO + RESET + DROP BACKSPACE)
 createExtraBtn("💣 DUPE G2: OFF", Color3.fromRGB(255, 0, 128), function(btn, stroke)
 	dupeG2Active = not dupeG2Active
 	if dupeG2Active then
@@ -919,29 +916,36 @@ createExtraBtn("💣 DUPE G2: OFF", Color3.fromRGB(255, 0, 128), function(btn, s
 					local hrp = char and char:FindFirstChild("HumanoidRootPart")
 					local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 					if hrp and humanoid then
+						-- Define o local de dupe se não houver um, ligeiramente elevado do chão (+3.5 studs no eixo Y)
 						if not dupeSpot then
-							dupeSpot = hrp.CFrame
+							dupeSpot = hrp.CFrame * CFrame.new(0, 3.5, 0)
 						end
+						
 						local g2s = getG2s()
 						if #g2s > 0 then
+							-- 1º PASSO: Teleportar para o ponto de dupe elevado
+							hrp.CFrame = dupeSpot
+							task.wait(0.05)
+							
+							-- 2º PASSO: Dar Reset no personagem
+							humanoid.Health = 0
+							task.wait(0.15)
+							
+							-- 3º PASSO: Equipar e dropar um por um via Backspace
 							for _, tool in pairs(g2s) do
 								pcall(function()
-									tool.Parent = workspace
-									local handle = tool:FindFirstChild("Handle")
-									if handle and handle:IsA("BasePart") then
-										handle.CanCollide = true
-										handle.Velocity = Vector3.new(0, 0, 0)
-										handle.RotVelocity = Vector3.new(0, 0, 0)
-										handle.CFrame = dupeSpot + Vector3.new(0, 2, 0)
-									end
+									humanoid:EquipTool(tool)
+									task.wait(0.04)
+									vim:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game)
+									task.wait(0.02)
+									vim:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game)
+									task.wait(0.04)
 								end)
 							end
-							task.wait(0.04)
-							humanoid.Health = 0
 						end
 					end
 				end)
-				task.wait(1.5)
+				task.wait(2.2) -- Intervalo seguro e calibrado para respawn e loop do dupe
 			end
 		end)
 	else
