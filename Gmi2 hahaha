@@ -1,0 +1,1011 @@
+--// 🩸 LOOP BY INSANE 🩸 - MOBILE EDITION (DELTA/FLUXUS) 🩸[OTIMIZADO]🩸
+--// DETECTOR E DESTRUTOR DE PAINEL ANTIGO (Permite re-executar sem travar ou sumir no Delta!)
+if shared.revolverPanelMobile then
+	pcall(function()
+		local lp = game:GetService("Players").LocalPlayer
+		local oldPanel = lp:WaitForChild("PlayerGui", 2):FindFirstChild("InsaneMobile")
+		if oldPanel then oldPanel:Destroy() end
+		
+		local protectedGui = (gethui and gethui()) or game:GetService("CoreGui")
+		if protectedGui then
+			local oldPanelProtected = protectedGui:FindFirstChild("InsaneMobile")
+			if oldPanelProtected then oldPanelProtected:Destroy() end
+		end
+	end)
+end
+shared.revolverPanelMobile = true
+
+--// SERVICES
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local vim = game:FindFirstChild("VirtualInputManager") or game:GetService("VirtualInputManager")
+local lp = Players.LocalPlayer
+local PlayerGui = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5) or lp.PlayerGui
+local Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+
+--// VARIABLES (NÃO MEXIDAS)
+local loopkillActive = false
+local currentTargetIndex = 1
+local fireRate = 0.45
+local lastShotTime = 0
+local selectedTargets = {}
+local alvos = {}
+local persistentTargets = {}
+local antiVoidActive = false
+local antiFlingActive = false
+local originalFallenHeight = workspace.FallenPartsDestroyHeight
+if originalFallenHeight ~= originalFallenHeight then originalFallenHeight = -500 end
+
+local speed1Value = 0.90
+local speed1Btn
+local isUsingDynamic = false
+
+local grabSettings = {
+	all = false,
+	g2 = false,
+	firework = false,
+	steelSword = false,
+	halloweenDagger = false
+}
+
+local panelVisible = true
+local viewingPlayer = nil
+local viewConn = nil
+
+--// UTILITY FUNCTIONS (NÃO MEXIDAS PATA RESPEITAR VOID/LOOP MANDATES)
+local function resetView()
+	if viewConn then
+		viewConn:Disconnect()
+		viewConn = nil
+	end
+
+	if lp.Character and lp.Character:FindFirstChildOfClass("Humanoid") then
+		Camera.CameraSubject = lp.Character:FindFirstChildOfClass("Humanoid")
+	end
+
+	viewingPlayer = nil
+end
+
+local function applyView(plr)
+	if plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") then
+		Camera.CameraSubject = plr.Character:FindFirstChildOfClass("Humanoid")
+	end
+
+	if viewConn then viewConn:Disconnect() end
+	viewConn = plr.CharacterAdded:Connect(function(char)
+		task.wait(0.2)
+		if viewingPlayer == plr and char:FindFirstChildOfClass("Humanoid") then
+			Camera.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+		end
+	end)
+end
+
+RunService.RenderStepped:Connect(function()
+	if viewingPlayer
+		and viewingPlayer.Character
+		and viewingPlayer.Character:FindFirstChildOfClass("Humanoid") then
+
+		if Camera.CameraSubject ~= viewingPlayer.Character:FindFirstChildOfClass("Humanoid") then
+			Camera.CameraSubject = viewingPlayer.Character:FindFirstChildOfClass("Humanoid")
+		end
+	end
+end)
+
+local function getRevolver()
+	local char = lp.Character
+	local backpack = lp:FindFirstChild("Backpack")
+	return (char and char:FindFirstChild("Kawaii Revolver")) or (backpack and backpack:FindFirstChild("Kawaii Revolver"))
+end
+
+local function notify(msg, duration)
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "🩸 Insane Mobile",
+		Text = msg,
+		Duration = duration or 3
+	})
+end
+
+local function getG2s()
+	local g2s = {}
+	local char = lp.Character
+	local backpack = lp:FindFirstChild("Backpack")
+	if backpack then
+		for _, item in pairs(backpack:GetChildren()) do
+			if item.Name == "Grenade 2" then
+				table.insert(g2s, item)
+			end
+		end
+	end
+	if char then
+		for _, item in pairs(char:GetChildren()) do
+			if item.Name == "Grenade 2" then
+				table.insert(g2s, item)
+			end
+		end
+	end
+	return g2s
+end
+
+--// GRAB LOGIC (ATALHOS CONTINUOS DE GRABTOOLS)
+local function grabItem(item)
+	if not item or not item:IsA("Tool") or not item:FindFirstChild("Handle") then return end
+	local char = lp.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		firetouchinterest(hrp, item.Handle, 0)
+		task.wait()
+		firetouchinterest(hrp, item.Handle, 1)
+	end
+end
+
+local function doGrab()
+	local char = lp.Character
+	if not char then return end
+	
+	for _, item in pairs(workspace:GetChildren()) do
+		if item:IsA("Tool") and item:FindFirstChild("Handle") then
+			local shouldGrab = false
+			if grabSettings.all then
+				shouldGrab = true
+			elseif grabSettings.g2 and item.Name == "Grenade 2" then
+				shouldGrab = true
+			elseif grabSettings.firework and item.Name == "Firework" then
+				shouldGrab = true
+			elseif grabSettings.steelSword and item.Name == "Steel Sword" then
+				shouldGrab = true
+			elseif grabSettings.halloweenDagger and item.Name == "Halloween Dagger" then
+				shouldGrab = true
+			end
+			
+			if shouldGrab then
+				grabItem(item)
+			end
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(function()
+	local anyGrab = false
+	for _, v in pairs(grabSettings) do if v then anyGrab = true break end end
+	if anyGrab then
+		pcall(doGrab)
+	end
+end)
+
+--// LÓGICA DE TIRO (INTACTA PARA ATALHOS MAIS CONFIAVEIS)
+local function shootRevolver()
+	if not loopkillActive or #alvos == 0 then return end
+	
+	local weapon = getRevolver()
+	if not weapon then return end
+	
+	local currentTime = tick()
+	if currentTime - lastShotTime < fireRate then return end
+	
+	local target = nil
+	local attempts = 0
+	
+	while attempts < #alvos do
+		target = alvos[currentTargetIndex]
+		
+		if target and type(target) == "userdata" and target:IsA("Player") and target.Character then
+			local hum = target.Character:FindFirstChildOfClass("Humanoid")
+			local hasShield = target.Character:FindFirstChildOfClass("ForceField")
+			
+			if hum and hum.Health > 0 and not hasShield then
+				break
+			end
+		end
+		
+		currentTargetIndex = currentTargetIndex + 1
+		if currentTargetIndex > #alvos then currentTargetIndex = 1 end
+		attempts = attempts + 1
+		target = nil
+	end
+	
+	if not target or not target.Character then return end
+	
+	local char = lp.Character
+	if not char then return end
+	
+	local hum = target.Character:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 or target.Character:FindFirstChildOfClass("ForceField") then return end
+	
+	local remote = weapon:FindFirstChild("DamageRemote")
+	if not remote then return end
+	
+	local oldParent = weapon.Parent
+	if oldParent ~= char then
+		weapon.Parent = char
+		pcall(function() remote:FireServer(hum) end)
+		weapon.Parent = oldParent
+	else
+		pcall(function() remote:FireServer(hum) end)
+	end
+	
+	lastShotTime = currentTime
+end
+
+task.spawn(function()
+	while task.wait(0.02) do
+		if loopkillActive then
+			pcall(shootRevolver)
+		end
+	end
+end)
+
+--// LÓGICA DE ANTI-FLING (INTEGRADA DO PC)
+RunService.Stepped:Connect(function()
+	if antiFlingActive and lp.Character then
+		for _, player in pairs(Players:GetPlayers()) do
+			if player ~= lp and player.Character then
+				for _, part in pairs(player.Character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+			end
+		end
+	end
+end)
+
+--// CRIAR INTERFACE CELULAR COMPATÍVEL COM DELTA/FLUXUS (PROTEÇÃO DE ENVIROMENT COM GETHUI)
+local parentGui = (gethui and gethui()) or game:GetService("CoreGui") or lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "InsaneMobile"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = parentGui
+
+-- Botão Flutuante de Abrir para Celulares (Dragável)
+local OpenBtn = Instance.new("TextButton", ScreenGui)
+OpenBtn.Name = "OpenBtn"
+OpenBtn.Size = UDim2.new(0, 50, 0, 50)
+OpenBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(20, 0, 0)
+OpenBtn.Text = "🩸"
+OpenBtn.TextSize = 28
+OpenBtn.Visible = false
+OpenBtn.Active = true
+OpenBtn.Draggable = true
+
+local OpenCorner = Instance.new("UICorner", OpenBtn)
+OpenCorner.CornerRadius = UDim.new(1, 0)
+
+local OpenStroke = Instance.new("UIStroke", OpenBtn)
+OpenStroke.Color = Color3.fromRGB(255, 0, 0)
+OpenStroke.Thickness = 2
+
+-- Painel Principal
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "MainPanel"
+MainFrame.Size = UDim2.new(0, 255, 0, 395)
+MainFrame.Position = UDim2.new(0.5, -127, 0.5, -197)
+MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+
+local Corner = Instance.new("UICorner", MainFrame)
+Corner.CornerRadius = UDim.new(0, 12)
+
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Color = Color3.fromRGB(255, 0, 0)
+Stroke.Thickness = 2
+
+-- Cabeçalho de arraste nativo mobile
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 50)
+Header.BackgroundTransparency = 1
+
+local draggingPanel = false
+local dragInput, dragStart, startPos
+
+local function updatePanel(input)
+	local delta = input.Position - dragStart
+	MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+Header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingPanel = true
+		dragStart = input.Position
+		startPos = MainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingPanel = false
+			end
+		end)
+	end
+end)
+
+Header.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and draggingPanel then
+		updatePanel(input)
+	end
+end)
+
+local Title = Instance.new("TextLabel", Header)
+Title.Text = "🩸 Insane Mobile 🩸"
+Title.Size = UDim2.new(1, -80, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 0, 0)
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local CloseBtn = Instance.new("TextButton", Header)
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -35, 0.5, -14)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 16
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+CloseBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = false
+	OpenBtn.Visible = true
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = true
+	OpenBtn.Visible = false
+end)
+
+--// ABAS (TABULATION)
+local TabFrame = Instance.new("Frame", MainFrame)
+TabFrame.Size = UDim2.new(1, -20, 0, 30)
+TabFrame.Position = UDim2.new(0, 10, 0, 50)
+TabFrame.BackgroundTransparency = 1
+
+local LoopTabBtn = Instance.new("TextButton", TabFrame)
+LoopTabBtn.Size = UDim2.new(0.48, 0, 1, 0)
+LoopTabBtn.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+LoopTabBtn.Text = "loop🩸"
+LoopTabBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+LoopTabBtn.Font = Enum.Font.GothamBold
+LoopTabBtn.TextSize = 12
+Instance.new("UICorner", LoopTabBtn).CornerRadius = UDim.new(0, 6)
+
+local ExtraTabBtn = Instance.new("TextButton", TabFrame)
+ExtraTabBtn.Size = UDim2.new(0.48, 0, 1, 0)
+ExtraTabBtn.Position = UDim2.new(0.52, 0, 0, 0)
+ExtraTabBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ExtraTabBtn.Text = "extra"
+ExtraTabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+ExtraTabBtn.Font = Enum.Font.GothamBold
+ExtraTabBtn.TextSize = 12
+Instance.new("UICorner", ExtraTabBtn).CornerRadius = UDim.new(0, 6)
+
+--// PAINÉIS DE CONTEÚDO
+local LoopFrame = Instance.new("Frame", MainFrame)
+LoopFrame.Size = UDim2.new(1, 0, 1, -90)
+LoopFrame.Position = UDim2.new(0, 0, 0, 90)
+LoopFrame.BackgroundTransparency = 1
+
+local ExtraFrame = Instance.new("Frame", MainFrame)
+ExtraFrame.Size = UDim2.new(1, 0, 1, -90)
+ExtraFrame.Position = UDim2.new(0, 0, 0, 90)
+ExtraFrame.BackgroundTransparency = 1
+ExtraFrame.Visible = false
+
+LoopTabBtn.MouseButton1Click:Connect(function()
+	LoopFrame.Visible = true
+	ExtraFrame.Visible = false
+	LoopTabBtn.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+	LoopTabBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+	ExtraTabBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	ExtraTabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+end)
+
+ExtraTabBtn.MouseButton1Click:Connect(function()
+	LoopFrame.Visible = false
+	ExtraFrame.Visible = true
+	ExtraTabBtn.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+	ExtraTabBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+	LoopTabBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	LoopTabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+end)
+
+--// CONTEÚDO ABALOCK KILL
+local StatusLabel = Instance.new("TextLabel", LoopFrame)
+StatusLabel.Size = UDim2.new(1, -20, 0, 30)
+StatusLabel.Position = UDim2.new(0, 10, 0, 0)
+StatusLabel.BackgroundColor3 = Color3.fromRGB(15, 0, 0)
+StatusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+StatusLabel.Text = "STATUS: ⚫ INATIVO"
+StatusLabel.Font = Enum.Font.GothamBold
+StatusLabel.TextSize = 12
+Instance.new("UICorner", StatusLabel).CornerRadius = UDim.new(0, 8)
+
+-- Lista de Jogadores para seleção
+local PlayersList = Instance.new("ScrollingFrame", LoopFrame)
+PlayersList.Size = UDim2.new(1, -20, 0, 135)
+PlayersList.Position = UDim2.new(0, 10, 0, 38)
+PlayersList.BackgroundColor3 = Color3.fromRGB(5, 0, 0)
+PlayersList.ScrollBarThickness = 2
+PlayersList.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
+local ListLayout = Instance.new("UIListLayout", PlayersList)
+ListLayout.Padding = UDim.new(0, 5)
+
+local function updatePlayersList()
+	for _, child in pairs(PlayersList:GetChildren()) do
+		if child:IsA("TextButton") then child:Destroy() end
+	end
+	
+	for i, player in ipairs(Players:GetPlayers()) do
+		if player ~= lp then
+			local isSelected = selectedTargets[player] ~= nil
+			local playerBtn = Instance.new("TextButton", PlayersList)
+			playerBtn.Size = UDim2.new(1, -5, 0, 52)
+			playerBtn.BackgroundColor3 = isSelected and Color3.fromRGB(100, 0, 0) or Color3.fromRGB(10, 0, 0)
+			playerBtn.Text = ""
+			Instance.new("UICorner", playerBtn).CornerRadius = UDim.new(0, 6)
+			
+			local Nick = Instance.new("TextLabel", playerBtn)
+			Nick.Size = UDim2.new(1, -50, 0, 18)
+			Nick.Position = UDim2.new(0, 10, 0, 4)
+			Nick.BackgroundTransparency = 1
+			Nick.TextColor3 = Color3.fromRGB(255, 255, 0)
+			Nick.Text = (isSelected and "🩸 " or "○ ") .. player.DisplayName
+			Nick.TextSize = 11
+			Nick.Font = Enum.Font.GothamBold
+			Nick.TextXAlignment = Enum.TextXAlignment.Left
+
+			local UserLabel = Instance.new("TextLabel", playerBtn)
+			UserLabel.Size = UDim2.new(1, -50, 0, 15)
+			UserLabel.Position = UDim2.new(0, 25, 0, 20)
+			UserLabel.BackgroundTransparency = 1
+			UserLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+			UserLabel.Text = "@" .. player.Name
+			UserLabel.TextSize = 9
+			UserLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+			if isSelected then
+				local HealthBG = Instance.new("Frame", playerBtn)
+				HealthBG.Size = UDim2.new(0, 55, 0, 4)
+				HealthBG.Position = UDim2.new(0, 10, 0, 38)
+				HealthBG.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+				HealthBG.BorderSizePixel = 0
+				
+				local HealthFill = Instance.new("Frame", HealthBG)
+				HealthFill.Size = UDim2.new(1, 0, 1, 0)
+				HealthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+				HealthFill.BorderSizePixel = 0
+				
+				local HealthText = Instance.new("TextLabel", playerBtn)
+				HealthText.Size = UDim2.new(0, 55, 0, 10)
+				HealthText.Position = UDim2.new(0, 10, 0, 42)
+				HealthText.BackgroundTransparency = 1
+				HealthText.TextColor3 = Color3.fromRGB(255, 255, 255)
+				HealthText.TextSize = 7
+				HealthText.TextXAlignment = Enum.TextXAlignment.Center
+				
+				local function updateHealthUI()
+					if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+						local hum = player.Character:FindFirstChildOfClass("Humanoid")
+						local health = math.floor(hum.Health)
+						local maxHealth = math.floor(hum.MaxHealth)
+						local percent = math.clamp(health / maxHealth, 0, 1)
+						
+						HealthFill.Size = UDim2.new(percent, 0, 1, 0)
+						HealthFill.BackgroundColor3 = percent > 0.6 and Color3.fromRGB(0, 255, 0) or percent > 0.3 and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(255, 0, 0)
+						HealthText.Text = health .. "/" .. maxHealth
+					else
+						HealthFill.Size = UDim2.new(0, 0, 1, 0)
+						HealthText.Text = "0/0"
+					end
+				end
+				
+				updateHealthUI()
+				
+				local charConn
+				local healthConn
+				
+				local function setupConnections(char)
+					if healthConn then healthConn:Disconnect() end
+					local hum = char:WaitForChild("Humanoid", 5)
+					if hum then
+						healthConn = hum.HealthChanged:Connect(updateHealthUI)
+						updateHealthUI()
+					end
+				end
+				
+				if player.Character then setupConnections(player.Character) end
+				charConn = player.CharacterAdded:Connect(setupConnections)
+				
+				playerBtn.Destroying:Connect(function()
+					if charConn then charConn:Disconnect() end
+					if healthConn then healthConn:Disconnect() end
+				end)
+			end
+
+			local ViewBtn = Instance.new("TextButton", playerBtn)
+			ViewBtn.Size = UDim2.new(0, 38, 0, 22)
+			ViewBtn.Position = UDim2.new(1, -43, 0.5, -11)
+			ViewBtn.BackgroundColor3 = Color3.fromRGB(20, 0, 0)
+			ViewBtn.Text = "view"
+			ViewBtn.TextSize = 9
+			ViewBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			Instance.new("UICorner", ViewBtn).CornerRadius = UDim.new(0, 6)
+			
+			if viewingPlayer == player then
+				local Dot = Instance.new("Frame", ViewBtn)
+				Dot.Size = UDim2.new(0, 4, 0, 4)
+				Dot.Position = UDim2.new(0, 2, 0.5, -2)
+				Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+				Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
+			end
+
+			ViewBtn.MouseButton1Click:Connect(function()
+				if viewingPlayer == player then resetView() else
+					if player.Character then resetView() viewingPlayer = player applyView(player) end
+				end
+				updatePlayersList()
+			end)
+
+			playerBtn.MouseButton1Click:Connect(function()
+				if selectedTargets[player] then
+					selectedTargets[player] = nil
+					persistentTargets[player.Name] = nil
+					for j, p in ipairs(alvos) do if p == player then table.remove(alvos, j) break end end
+				else
+					selectedTargets[player] = true
+					persistentTargets[player.Name] = true
+					table.insert(alvos, player)
+				end
+				updatePlayersList()
+			end)
+		end
+	end
+	PlayersList.CanvasSize = UDim2.new(0, 0, 0, (#Players:GetPlayers() * 55))
+end
+
+-- Velocidades do Loop de disparo
+local SpeedFrame = Instance.new("Frame", LoopFrame)
+SpeedFrame.Size = UDim2.new(1, -20, 0, 30)
+SpeedFrame.Position = UDim2.new(0, 10, 0, 185)
+SpeedFrame.BackgroundTransparency = 1
+
+local function createSpeedBtn(text, speed, xPos, isDynamic)
+	local btn = Instance.new("TextButton", SpeedFrame)
+	btn.Size = UDim2.new(0.18, 0, 1, 0)
+	btn.Position = UDim2.new(xPos, 0, 0, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(15, 0, 0)
+	btn.Text = text
+	btn.TextColor3 = Color3.fromRGB(255, 0, 0)
+	btn.TextSize = 10
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	
+	if isDynamic then speed1Btn = btn end
+	
+	btn.MouseButton1Click:Connect(function() 
+		local currentSpeed = isDynamic and speed1Value or speed
+		fireRate = currentSpeed 
+		isUsingDynamic = isDynamic
+		if SettingsLabel then
+			SettingsLabel.Text = "⚙️ VELOCIDADE ATUAL: " .. string.format("%.2fs", currentSpeed) .. "s"
+		end
+		notify("⚡ Velocidade: " .. string.format("%.2fs", currentSpeed) .. "s", 0.5)
+	end)
+end
+
+createSpeedBtn("0.90s", 0.90, 0, true)
+createSpeedBtn("0.46s", 0.46, 0.2)
+createSpeedBtn("0.45s", 0.45, 0.4)
+createSpeedBtn("0.44s", 0.44, 0.6)
+createSpeedBtn("0.43s", 0.43, 0.8)
+
+local SettingsLabel = Instance.new("TextLabel", LoopFrame)
+SettingsLabel.Size = UDim2.new(0, 115, 0, 20)
+SettingsLabel.Position = UDim2.new(0, 10, 0, 220)
+SettingsLabel.BackgroundColor3 = Color3.fromRGB(15, 0, 0)
+SettingsLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+SettingsLabel.Text = "⚙️ VELOCIDADE ATUAL: 0.45s"
+SettingsLabel.Font = Enum.Font.GothamBold
+SettingsLabel.TextSize = 8
+Instance.new("UICorner", SettingsLabel).CornerRadius = UDim.new(0, 6)
+
+local SliderFrame = Instance.new("Frame", LoopFrame)
+SliderFrame.Size = UDim2.new(0, 100, 0, 6)
+SliderFrame.Position = UDim2.new(0, 135, 0, 227)
+SliderFrame.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+SliderFrame.BorderSizePixel = 0
+Instance.new("UICorner", SliderFrame).CornerRadius = UDim.new(1, 0)
+
+local SliderKnob = Instance.new("TextButton", SliderFrame)
+SliderKnob.Size = UDim2.new(0, 18, 0, 18)
+SliderKnob.Position = UDim2.new(1, -9, 0.5, -9)
+SliderKnob.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+SliderKnob.Text = ""
+Instance.new("UICorner", SliderKnob).CornerRadius = UDim.new(1, 0)
+
+local dragging = false
+SliderKnob.MouseButton1Down:Connect(function() 
+	dragging = true 
+end)
+
+UserInputService.InputEnded:Connect(function(input) 
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then 
+		dragging = false 
+	end 
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local mousePos = input.Position.X
+		local framePos = SliderFrame.AbsolutePosition.X
+		local frameWidth = SliderFrame.AbsoluteSize.X
+		local relativeX = math.clamp(mousePos - framePos, 0, frameWidth)
+		local percent = relativeX / frameWidth
+		
+		local minVal = 0.50
+		local maxVal = 0.90
+		local step = 0.10
+		local steps = (maxVal - minVal) / step
+		local steppedPercent = math.floor(percent * steps + 0.5) / steps
+		local newValue = minVal + steppedPercent * (maxVal - minVal)
+		
+		SliderKnob.Position = UDim2.new(steppedPercent, -9, 0.5, -9)
+		speed1Value = newValue
+		if speed1Btn then speed1Btn.Text = string.format("%.2fs", newValue) end
+		
+		if isUsingDynamic then
+			fireRate = newValue
+			if SettingsLabel then
+				SettingsLabel.Text = "⚙️ VELOCIDADE ATUAL: " .. string.format("%.2fs", newValue) .. "s"
+			end
+		end
+	end
+end)
+
+local StartBtn = Instance.new("TextButton", LoopFrame)
+StartBtn.Size = UDim2.new(0.48, 0, 0, 38)
+StartBtn.Position = UDim2.new(0, 10, 1, -42)
+StartBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+StartBtn.Text = "INICIAR"
+StartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", StartBtn).CornerRadius = UDim.new(0, 8)
+
+local StopBtn = Instance.new("TextButton", LoopFrame)
+StopBtn.Size = UDim2.new(0.48, 0, 0, 38)
+StopBtn.Position = UDim2.new(0.52, 0, 1, -42)
+StopBtn.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+StopBtn.Text = "PARAR"
+StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 8)
+
+StartBtn.MouseButton1Click:Connect(function()
+	if #alvos > 0 and getRevolver() then
+		loopkillActive = true
+		StatusLabel.Text = "STATUS: 🟢 ATIVO"
+	end
+end)
+
+StopBtn.MouseButton1Click:Connect(function()
+	loopkillActive = false
+	StatusLabel.Text = "STATUS: ⚫ INATIVO"
+end)
+
+--// EXTRA TAB CONTENT (COM ROLAGEM AVALIADA PARA 480PX CANVAS)
+local ExtraScroll = Instance.new("ScrollingFrame", ExtraFrame)
+ExtraScroll.Size = UDim2.new(1, -20, 1, -10)
+ExtraScroll.Position = UDim2.new(0, 10, 0, 5)
+ExtraScroll.BackgroundTransparency = 1
+ExtraScroll.ScrollBarThickness = 2
+ExtraScroll.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
+local ExtraLayout = Instance.new("UIListLayout", ExtraScroll)
+ExtraLayout.Padding = UDim.new(0, 8)
+
+local function createExtraBtn(text, color, callback)
+	local btn = Instance.new("TextButton", ExtraScroll)
+	btn.Size = UDim2.new(1, -5, 0, 35)
+	btn.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+	btn.Text = text
+	btn.TextColor3 = color
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 11
+	local stroke = Instance.new("UIStroke", btn)
+	stroke.Color = color
+	stroke.Thickness = 1
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Transparency = 0.5
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	btn.MouseButton1Click:Connect(function() callback(btn, stroke) end)
+	return btn
+end
+
+-- 1. Anti-Void (INTACTO/SEM MUDANÇA NA LÓGICA DE VOID)
+createExtraBtn("🛡️ ANTI-VOID: OFF", Color3.fromRGB(255, 255, 255), function(btn, stroke)
+	antiVoidActive = not antiVoidActive
+	if antiVoidActive then
+		workspace.FallenPartsDestroyHeight = 0/0
+		btn.Text = "🛡️ ANTI-VOID: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+	else
+		workspace.FallenPartsDestroyHeight = originalFallenHeight
+		btn.Text = "🛡️ ANTI-VOID: OFF"
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+	end
+end)
+
+-- 2. Anti-Fling (INTEGRAÇÃO COMPLETA)
+createExtraBtn("🚫 ANTI-FLING: OFF", Color3.fromRGB(255, 255, 255), function(btn, stroke)
+	antiFlingActive = not antiFlingActive
+	if antiFlingActive then
+		btn.Text = "🚫 ANTI-FLING: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+	else
+		btn.Text = "🚫 ANTI-FLING: OFF"
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+	end
+end)
+
+-- 3. Void Spam (INTACTO/NÃO MEXIDO)
+createExtraBtn("🌌 VOID (SPAM)", Color3.fromRGB(180, 0, 255), function()
+	if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+		local hrp = lp.Character.HumanoidRootPart
+		hrp.Velocity = Vector3.new(0, 0, 0)
+		task.spawn(function()
+			for i = 1, 20 do
+				workspace.FallenPartsDestroyHeight = 0/0
+				task.wait(0.05)
+				workspace.FallenPartsDestroyHeight = originalFallenHeight
+				task.wait(0.05)
+			end
+			workspace.FallenPartsDestroyHeight = antiVoidActive and 0/0 or originalFallenHeight
+		end)
+		task.spawn(function()
+			for i = 1, 5 do hrp.CFrame = CFrame.new(0, -500, 0) task.wait(0.1) end
+		end)
+	end
+end)
+
+-- 4. Void Opp (INTACTO/NÃO MEXIDO)
+createExtraBtn("🌌 VOID OPP", Color3.fromRGB(180, 0, 255), function()
+	pcall(function()
+		local character = lp.Character
+		if character then
+			local HRP = character:FindFirstChild("HumanoidRootPart")
+			local Hum = character:FindFirstChild("Humanoid")
+			if HRP and Hum then
+				workspace.FallenPartsDestroyHeight = 0/0
+				HRP.CFrame = CFrame.new(1e9, -1e9, 1e9)
+				task.wait(0.1)
+				Hum.Health = 0
+			end
+		end
+	end)
+end)
+
+-- 5. LANÇAR G2 [MÉTODO DO PC ALTAMENTE MELHORADO!]
+createExtraBtn("💣 LANÇAR G2", Color3.fromRGB(255, 0, 0), function()
+	local tools = getG2s()
+	if #tools == 0 then
+		notify("❌ Nenhuma G2 encontrada!", 2)
+		return
+	end
+	
+	notify("💣 Lançando todas as G2!", 2)
+	task.spawn(function()
+		local currentTools = getG2s()
+		local conn
+		conn = workspace.ChildAdded:Connect(function(child)
+			task.spawn(function()
+				pcall(function()
+					local lowerName = string.lower(child.Name)
+					if string.find(lowerName, "grenade") or string.find(lowerName, "g2") or child:IsA("Tool") then
+						task.wait()
+						
+						local function processPart(part)
+							if part:IsA("BasePart") then
+								part.Velocity = Vector3.new(0, math.min(part.Velocity.Y, 0), 0)
+								for _, force in ipairs(part:GetChildren()) do
+									if force:IsA("BodyVelocity") or force:IsA("BodyForce") or force:IsA("BodyThrust") or force:IsA("BodyGyro") or force:IsA("BodyPosition") then
+										force:Destroy()
+									end
+								end
+							end
+						end
+						
+						if child:IsA("BasePart") then
+							processPart(child)
+						end
+						for _, desc in ipairs(child:GetDescendants()) do
+							processPart(desc)
+						end
+					end
+				end)
+			end)
+		end)
+
+		for i, tool in ipairs(currentTools) do
+			task.spawn(function()
+				pcall(function()
+					if not lp.Character then return end
+					local handle = tool:FindFirstChild("Handle")
+					if handle and handle:IsA("BasePart") then
+						handle.CanCollide = false
+					end
+					tool.Parent = lp.Character
+					tool:Activate()
+				end)
+			end)
+			if i % 5 == 0 then
+				task.wait()
+			end
+		end
+
+		task.delay(2.5, function()
+			if conn then conn:Disconnect() end
+		end)
+		notify("💥 Lançamento finalizado!", 2)
+	end)
+end)
+
+-- 6. BOTÃO EXCLUSIVO DE GRAB ALL (TOGGLE DE GRABTOOLS)
+createExtraBtn("⚡ GRAB ALL: OFF", Color3.fromRGB(255, 255, 255), function(btn, stroke)
+	grabSettings.all = not grabSettings.all
+	if grabSettings.all then
+		btn.Text = "⚡ GRAB ALL: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+		notify("⚡ Grab All ATIVADO!", 2)
+	else
+		btn.Text = "⚡ GRAB ALL: OFF"
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		notify("⚡ Grab All DESATIVADO!", 2)
+	end
+end)
+
+-- 7. BOTÃO GRAB G2
+createExtraBtn("⚡ GRAB G2: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
+	grabSettings.g2 = not grabSettings.g2
+	if grabSettings.g2 then
+		btn.Text = "⚡ GRAB G2: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+		notify("⚡ Grab G2 ATIVADO!", 2)
+	else
+		btn.Text = "⚡ GRAB G2: OFF"
+		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		notify("⚡ Grab G2 DESATIVADO!", 2)
+	end
+end)
+
+-- 8. BOTÃO GRAB FIREWORK
+createExtraBtn("⚡ GRAB FIREWORK: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
+	grabSettings.firework = not grabSettings.firework
+	if grabSettings.firework then
+		btn.Text = "⚡ GRAB FIREWORK: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+		notify("⚡ Grab Firework ATIVADO!", 2)
+	else
+		btn.Text = "⚡ GRAB FIREWORK: OFF"
+		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		notify("⚡ Grab Firework DESATIVADO!", 2)
+	end
+end)
+
+-- 9. BOTÃO GRAB STEEL SWORD
+createExtraBtn("⚡ GRAB SWORD: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
+	grabSettings.steelSword = not grabSettings.steelSword
+	if grabSettings.steelSword then
+		btn.Text = "⚡ GRAB SWORD: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+		notify("⚡ Grab Steel Sword ATIVADO!", 2)
+	else
+		btn.Text = "⚡ GRAB SWORD: OFF"
+		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		notify("⚡ Grab Steel Sword DESATIVADO!", 2)
+	end
+end)
+
+-- 10. BOTÃO GRAB HALLOWEEN DAGGER
+createExtraBtn("⚡ GRAB DAGGER: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
+	grabSettings.halloweenDagger = not grabSettings.halloweenDagger
+	if grabSettings.halloweenDagger then
+		btn.Text = "⚡ GRAB DAGGER: ON"
+		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
+		stroke.Color = Color3.fromRGB(0, 255, 0)
+		notify("⚡ Grab Halloween Dagger ATIVADO!", 2)
+	else
+		btn.Text = "⚡ GRAB DAGGER: OFF"
+		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		notify("⚡ Grab Halloween Dagger DESATIVADO!", 2)
+	end
+end)
+
+-- 11. 🎒 NOVA FUNÇÃO EXCLUSIVA: RESET DE PERSONAGEM + DROP DE INVENTÁRIO COMPLETO
+createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
+	pcall(function()
+		local char = lp.Character
+		local backpack = lp:FindFirstChild("Backpack")
+		local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+		
+		if humanoid then
+			local toolsToDrop = {}
+			if backpack then
+				for _, tool in pairs(backpack:GetChildren()) do
+					if tool:IsA("Tool") then
+						table.insert(toolsToDrop, tool)
+					end
+				end
+			end
+			if char then
+				for _, tool in pairs(char:GetChildren()) do
+					if tool:IsA("Tool") then
+						table.insert(toolsToDrop, tool)
+					end
+				end
+			end
+			
+			-- Reseta o personagem primeiro
+			humanoid.Health = 0
+			task.wait(0.12) -- Atraso curto ideal para dropar durante o estado inicial de ragdoll/reset
+			
+			-- Dropa todas as ferramentas no chão na posição onde morreu
+			for _, tool in pairs(toolsToDrop) do
+				pcall(function()
+					tool.Parent = workspace
+				end)
+			end
+			notify("🎒 Inventário dropado e personagem resetado!", 2)
+		else
+			notify("❌ Humanoid não encontrado!", 2)
+		end
+	end)
+end)
+
+-- Tamanho Ajustado da Rolagem de extras para caber todos os novos botões (11 botões com espaçamento adequado)
+ExtraScroll.CanvasSize = UDim2.new(0, 0, 0, 480)
+
+--// EVENTS (NÃO MEXIDOS POR SEGURANÇA CONTRA DESCONEXÕES/RESSETS)
+Players.PlayerAdded:Connect(function(player)
+	task.wait(0.5)
+	if persistentTargets[player.Name] then
+		selectedTargets[player] = true
+		table.insert(alvos, player)
+		notify("⚠️ ALVO RECONECTADO: " .. player.DisplayName, 5)
+	end
+	updatePlayersList()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	if viewingPlayer == player then resetView() end
+	if selectedTargets[player] then
+		selectedTargets[player] = nil
+		for i, p in ipairs(alvos) do if p == player then table.remove(alvos, i) break end end
+	end
+	updatePlayersList()
+end)
+
+lp.CharacterAdded:Connect(function()
+	loopkillActive = false
+	StatusLabel.Text = "STATUS: ⚫ INATIVO (Respawn)"
+	notify("⚠️ Loop desativado por segurança!", 4)
+end)
+
+updatePlayersList()
