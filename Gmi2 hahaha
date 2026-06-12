@@ -42,11 +42,7 @@ local speed1Btn
 local isUsingDynamic = false
 
 local grabSettings = {
-	all = false,
-	g2 = false,
-	firework = false,
-	steelSword = false,
-	halloweenDagger = false
+	all = false
 }
 
 local panelVisible = true
@@ -145,20 +141,7 @@ local function doGrab()
 	
 	for _, item in pairs(workspace:GetChildren()) do
 		if item:IsA("Tool") and item:FindFirstChild("Handle") then
-			local shouldGrab = false
 			if grabSettings.all then
-				shouldGrab = true
-			elseif grabSettings.g2 and item.Name == "Grenade 2" then
-				shouldGrab = true
-			elseif grabSettings.firework and item.Name == "Firework" then
-				shouldGrab = true
-			elseif grabSettings.steelSword and item.Name == "Steel Sword" then
-				shouldGrab = true
-			elseif grabSettings.halloweenDagger and item.Name == "Halloween Dagger" then
-				shouldGrab = true
-			end
-			
-			if shouldGrab then
 				grabItem(item)
 			end
 		end
@@ -166,9 +149,7 @@ local function doGrab()
 end
 
 RunService.Heartbeat:Connect(function()
-	local anyGrab = false
-	for _, v in pairs(grabSettings) do if v then anyGrab = true break end end
-	if anyGrab then
+	if grabSettings.all then
 		pcall(doGrab)
 	end
 end)
@@ -283,7 +264,7 @@ MainFrame.Size = UDim2.new(0, 255, 0, 395)
 MainFrame.Position = UDim2.new(0.5, -127, 0.5, -197)
 MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
+MainFrame.Active = false
 
 local Corner = Instance.new("UICorner", MainFrame)
 Corner.CornerRadius = UDim.new(0, 12)
@@ -874,71 +855,7 @@ createExtraBtn("⚡ GRAB ALL: OFF", Color3.fromRGB(255, 255, 255), function(btn,
 	end
 end)
 
--- 7. BOTÃO GRAB G2
-createExtraBtn("⚡ GRAB G2: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
-	grabSettings.g2 = not grabSettings.g2
-	if grabSettings.g2 then
-		btn.Text = "⚡ GRAB G2: ON"
-		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
-		stroke.Color = Color3.fromRGB(0, 255, 0)
-		notify("⚡ Grab G2 ATIVADO!", 2)
-	else
-		btn.Text = "⚡ GRAB G2: OFF"
-		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-		stroke.Color = Color3.fromRGB(255, 255, 255)
-		notify("⚡ Grab G2 DESATIVADO!", 2)
-	end
-end)
-
--- 8. BOTÃO GRAB FIREWORK
-createExtraBtn("⚡ GRAB FIREWORK: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
-	grabSettings.firework = not grabSettings.firework
-	if grabSettings.firework then
-		btn.Text = "⚡ GRAB FIREWORK: ON"
-		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
-		stroke.Color = Color3.fromRGB(0, 255, 0)
-		notify("⚡ Grab Firework ATIVADO!", 2)
-	else
-		btn.Text = "⚡ GRAB FIREWORK: OFF"
-		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-		stroke.Color = Color3.fromRGB(255, 255, 255)
-		notify("⚡ Grab Firework DESATIVADO!", 2)
-	end
-end)
-
--- 9. BOTÃO GRAB STEEL SWORD
-createExtraBtn("⚡ GRAB SWORD: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
-	grabSettings.steelSword = not grabSettings.steelSword
-	if grabSettings.steelSword then
-		btn.Text = "⚡ GRAB SWORD: ON"
-		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
-		stroke.Color = Color3.fromRGB(0, 255, 0)
-		notify("⚡ Grab Steel Sword ATIVADO!", 2)
-	else
-		btn.Text = "⚡ GRAB SWORD: OFF"
-		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-		stroke.Color = Color3.fromRGB(255, 255, 255)
-		notify("⚡ Grab Steel Sword DESATIVADO!", 2)
-	end
-end)
-
--- 10. BOTÃO GRAB HALLOWEEN DAGGER
-createExtraBtn("⚡ GRAB DAGGER: OFF", Color3.fromRGB(200, 200, 200), function(btn, stroke)
-	grabSettings.halloweenDagger = not grabSettings.halloweenDagger
-	if grabSettings.halloweenDagger then
-		btn.Text = "⚡ GRAB DAGGER: ON"
-		btn.TextColor3 = Color3.fromRGB(0, 255, 0)
-		stroke.Color = Color3.fromRGB(0, 255, 0)
-		notify("⚡ Grab Halloween Dagger ATIVADO!", 2)
-	else
-		btn.Text = "⚡ GRAB DAGGER: OFF"
-		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-		stroke.Color = Color3.fromRGB(255, 255, 255)
-		notify("⚡ Grab Halloween Dagger DESATIVADO!", 2)
-	end
-end)
-
--- 11. 🎒 NOVA FUNÇÃO EXCLUSIVA: RESET DE PERSONAGEM + DROP DE INVENTÁRIO COMPLETO
+-- 7. 🎒 DROP ALL & RESET COM RESSET PRIMEIRO + EMULAÇÃO BACKSPACE ROBLOX
 createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 	pcall(function()
 		local char = lp.Character
@@ -962,25 +879,37 @@ createExtraBtn("🎒 DROP ALL & RESET", Color3.fromRGB(255, 128, 0), function()
 				end
 			end
 			
-			-- Reseta o personagem primeiro
-			humanoid.Health = 0
-			task.wait(0.12) -- Atraso curto ideal para dropar durante o estado inicial de ragdoll/reset
-			
-			-- Dropa todas as ferramentas no chão na posição onde morreu
-			for _, tool in pairs(toolsToDrop) do
-				pcall(function()
-					tool.Parent = workspace
-				end)
+			if #toolsToDrop == 0 then
+				notify("❌ Nenhum item para dropar!", 2)
+				return
 			end
-			notify("🎒 Inventário dropado e personagem resetado!", 2)
+			
+			-- 1º PASSO: Dar Reset no personagem
+			humanoid.Health = 0
+			task.wait(0.15) -- Espera o estado de morte para iniciar o drop simulado (Idêntico ao G2 Dupe do PC)
+			
+			-- 2º PASSO: Equipar e dropar um por um via Backspace
+			task.spawn(function()
+				for _, tool in pairs(toolsToDrop) do
+					pcall(function()
+						humanoid:EquipTool(tool)
+						task.wait(0.04)
+						vim:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game)
+						task.wait(0.02)
+						vim:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game)
+						task.wait(0.04)
+					end)
+				end
+				notify("🎒 Tudo foi dropado no chão com sucesso!", 2)
+			end)
 		else
 			notify("❌ Humanoid não encontrado!", 2)
 		end
 	end)
 end)
 
--- Tamanho Ajustado da Rolagem de extras para caber todos os novos botões (11 botões com espaçamento adequado)
-ExtraScroll.CanvasSize = UDim2.new(0, 0, 0, 480)
+-- Tamanho Ajustado da Rolagem de extras para caber perfeitamente os botões da aba sem espaços desnecessários
+ExtraScroll.CanvasSize = UDim2.new(0, 0, 0, 310)
 
 --// EVENTS (NÃO MEXIDOS POR SEGURANÇA CONTRA DESCONEXÕES/RESSETS)
 Players.PlayerAdded:Connect(function(player)
